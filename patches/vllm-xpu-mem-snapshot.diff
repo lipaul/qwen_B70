@@ -1,0 +1,17 @@
+diff --git a/vllm/platforms/xpu.py b/vllm/platforms/xpu.py
+index ddfde22..0237d2d 100644
+--- a/vllm/platforms/xpu.py
++++ b/vllm/platforms/xpu.py
+@@ -92,9 +92,9 @@ def get_mem_info_wrapper(
+         )
+ 
+     # Call the underlying C++ implementation
+-    free, total = torch.ops._C_cache_ops.getMemoryInfo(device)
+-
+-    return free, total
++    # torch.ops._C_cache_ops.getMemoryInfo reports free=0 on a fresh allocator
++    # (dual-GPU host / vLLM startup memory check); the driver query is accurate.
++    return torch.xpu.mem_get_info(device)
+ 
+ 
+ torch.accelerator.get_memory_info = get_mem_info_wrapper

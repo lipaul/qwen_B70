@@ -1,0 +1,32 @@
+diff --git a/vllm/v1/worker/xpu_worker.py b/vllm/v1/worker/xpu_worker.py
+index 091406a..b0af731 100644
+--- a/vllm/v1/worker/xpu_worker.py
++++ b/vllm/v1/worker/xpu_worker.py
+@@ -101,7 +101,13 @@ class XPUWorker(Worker):
+         )
+ 
+         # global all_reduce needed for overall oneccl warm up
+-        if torch.distributed.is_xccl_available():
++        # Skipped for world_size==1: oneCCL cannot init Level Zero comm on this
++        # dual-GPU host (NVIDIA + Intel) and no collective runs on the single
++        # device. Mirrors upstream fix (vLLM issue #52386).
++        if (
++            torch.distributed.is_xccl_available()
++            and self.parallel_config.world_size > 1
++        ):
+             torch.distributed.all_reduce(torch.zeros(1).xpu())
+ 
+         if self.use_v2_model_runner:
+@@ -114,6 +120,12 @@ class XPUWorker(Worker):
+         gc.collect()
+         torch.accelerator.empty_cache()
+ 
++        # Force Level Zero context init: before the first allocation XPU reports
++        # free memory as 0 (torch.accelerator.get_memory_info -> (0, total)) in a
++        # fresh process, which makes vLLM's startup memory check fail.
++        torch.zeros(1, device=self.device)
++        torch.xpu.synchronize(self.device)
++
+         # take current memory snapshot
+         self.init_snapshot = init_snapshot = MemorySnapshot(device=self.device)
+         self.requested_memory = request_memory(init_snapshot, self.cache_config)

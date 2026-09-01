@@ -1,0 +1,160 @@
+[project]
+name = "qwen38-b70-bench"
+version = "0.1.0"
+description = "Minimal Intel XPU vLLM env for Qwen3.8-27B single-B70 benchmarking (lab nightly stack)"
+readme = "AGENTS.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # --- PyTorch XPU wheel stack (from the pytorch-xpu index) ---
+    "torch==2.13.0",
+    "torchvision",
+    "torchaudio",
+    "torchcodec>=0.14",
+    # Triton XPU: the nightly's `triton==3.7.2+xpu` shim pulls triton-xpu==3.7.2;
+    # we depend on triton-xpu directly (provides the `triton` import) and exclude
+    # the stock triton dist, mirroring uv_scaffolding_xpu.
+    "triton-xpu==3.7.2",
+    # vllm_xpu_kernels (PyPI, abi3 wheel) matching the nightly pin.
+    "vllm-xpu-kernels==0.1.13.2",
+
+    # --- built from source (see [tool.uv.sources] + no-build-isolation) ---
+    "vllm",
+]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+# xgrammar / openai-whisper declare a dep on stock `triton`, but on XPU the
+# `triton` import must come from `triton-xpu` (mutually exclusive).
+exclude-dependencies = ["triton"]
+
+# vllm must build against the already-installed torch (+xpu), exactly like the
+# official vLLM-Omni XPU Dockerfile / uv_scaffolding_xpu (no build isolation).
+no-build-isolation-package = ["vllm"]
+
+# Build tools required by the vllm source build, installed before it builds.
+extra-build-dependencies = {
+    vllm = [
+        "cmake>=3.26.1",
+        "ninja",
+        "packaging>=24.2",
+        "setuptools>=77.0.3,<81.0.0",
+        "setuptools-scm>=8.0",
+        "setuptools-rust>=1.9.0",
+        "wheel",
+        "jinja2",
+        "grpcio-tools",
+        "protobuf",
+        "nanobind",
+    ],
+}
+
+# Device selection for the XPU source build.
+extra-build-variables = {
+    vllm = {
+        VLLM_TARGET_DEVICE = "xpu",
+        VLLM_WORKER_MULTIPROC_METHOD = "spawn",
+    },
+}
+
+# The cloned third-party tree must NOT be auto-discovered as a workspace member.
+[tool.uv.workspace]
+exclude = ["vendor/*"]
+
+[[tool.uv.index]]
+name = "pytorch-xpu"
+url = "https://download.pytorch.org/whl/xpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-xpu" }
+torchvision = { index = "pytorch-xpu" }
+torchaudio = { index = "pytorch-xpu" }
+torchcodec = { index = "pytorch-xpu" }
+triton-xpu = { index = "pytorch-xpu" }
+vllm = { path = "vendor/vllm" }
+
+# Static metadata for vllm: uv must not execute its setup.py to resolve the
+# graph (setup.py imports torch at module level and derives its dependency list
+# from the installed torch backend at build time). Mirrors vllm's
+# requirements/{xpu,common}.txt at the pinned nightly commit e9d1398d9.
+[[tool.uv.dependency-metadata]]
+name = "vllm"
+version = "0.26.1rc1.dev1102"
+requires-dist = [
+    "triton-xpu==3.7.2",
+    "ray>=2.9",
+    "cmake>=3.26.1",
+    "packaging>=24.2",
+    "setuptools-scm>=8",
+    "setuptools-rust>=1.9.0",
+    "setuptools>=77.0.3,<81.0.0",
+    "wheel",
+    "jinja2>=3.1.6",
+    "datasets",
+    "numba==0.65.0",
+    "torch==2.13.0",
+    "torchaudio",
+    "torchvision",
+    "torchcodec>=0.14",
+    "auto-round-lib==0.14.2",
+    "vllm-xpu-kernels==0.1.13.2",
+    "regex",
+    "cachetools",
+    "psutil",
+    "sentencepiece",
+    "numpy",
+    "requests>=2.26.0",
+    "tqdm",
+    "blake3",
+    "py-cpuinfo",
+    "transformers>=5.5.3",
+    "huggingface-hub>=1.28.0",
+    "tokenizers>=0.21.1",
+    "safetensors>=0.6.2",
+    "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*",
+    "fastapi[standard]>=0.133.0,<0.137.0",
+    "starlette>=1.0.1",
+    "aiohttp>=3.13.3",
+    "openai>=2.0.0",
+    "pydantic>=2.12.0",
+    "prometheus-client>=0.18.0",
+    "pillow",
+    "prometheus-fastapi-instrumentator>=8.0.0",
+    "tiktoken>=0.6.0",
+    "lm-format-enforcer==0.11.3",
+    "llguidance>=1.7.0,<1.8.0",
+    "outlines-core==0.2.14",
+    "lark==1.2.2",
+    "xgrammar>=0.2.1,<1.0.0",
+    "typing-extensions>=4.10",
+    "filelock>=3.16.1",
+    "partial-json-parser",
+    "jsonschema>=4.23.0",
+    "pyzmq>=25.0.0",
+    "msgspec",
+    "mistral-common[image]>=1.11.6",
+    "opencv-python-headless>=4.13.0",
+    "pyyaml",
+    "six>=1.16.0",
+    "einops",
+    "compressed-tensors==0.17.0",
+    "depyf==0.20.0",
+    "cloudpickle",
+    "watchfiles",
+    "python-json-logger",
+    "ninja",
+    "pybase64",
+    "cbor2",
+    "ijson",
+    "setproctitle",
+    "openai-harmony>=0.0.3",
+    "anthropic>=0.71.0",
+    "model-hosting-container-standards>=0.1.14,<1.0.0",
+    "mcp",
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-exporter-otlp>=1.27.0",
+    "opentelemetry-semantic-conventions-ai>=0.4.1",
+]

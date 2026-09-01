@@ -1,0 +1,24 @@
+diff --git a/vllm/triton_utils/importing.py b/vllm/triton_utils/importing.py
+index e17450f..f4b01ef 100644
+--- a/vllm/triton_utils/importing.py
++++ b/vllm/triton_utils/importing.py
+@@ -27,6 +27,19 @@ if HAS_TRITON:
+             x.driver for x in backends.values() if x.driver and x.driver.is_active()
+         ]
+ 
++        # Dual-GPU host (NVIDIA + Intel): the NVIDIA triton driver reports active
++        # via its own check even though torch.cuda is unavailable. When the XPU
++        # build is selected, keep only the Intel (XPU) driver so Triton stays
++        # enabled for XPU kernel compilation.
++        if (
++            os.environ.get("VLLM_TARGET_DEVICE", "cuda").lower() == "xpu"
++            and len(active_drivers) > 1
++        ):
++            active_drivers = [
++                d for d in active_drivers
++                if "nvidia" not in getattr(d, "__module__", "")
++            ]
++
+         # Check if we're in a distributed environment where CUDA_VISIBLE_DEVICES
+         # or HIP_VISIBLE_DEVICES might be temporarily empty (e.g., Ray sets it to ""
+         # during actor init)

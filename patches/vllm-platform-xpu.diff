@@ -1,0 +1,17 @@
+diff --git a/vllm/platforms/__init__.py b/vllm/platforms/__init__.py
+index 718e252..b28c914 100644
+--- a/vllm/platforms/__init__.py
++++ b/vllm/platforms/__init__.py
+@@ -58,6 +58,12 @@ def tpu_platform_plugin() -> str | None:
+ 
+ def cuda_platform_plugin() -> str | None:
+     is_cuda = False
++    # Dual-GPU host (NVIDIA + Intel B70): NVML sees the NVIDIA GPU, so CUDA
++    # would activate alongside XPU and vLLM refuses to start. Honor the
++    # build/runtime selector VLLM_TARGET_DEVICE.
++    if os.environ.get("VLLM_TARGET_DEVICE", "cuda").lower() == "xpu":
++        logger.debug("CUDA platform disabled by VLLM_TARGET_DEVICE=xpu.")
++        return None
+     logger.debug("Checking if CUDA platform is available.")
+     try:
+         from vllm.utils.import_utils import import_pynvml
