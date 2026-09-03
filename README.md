@@ -18,6 +18,25 @@ XPU graph ON, MTP off, cache-zero:
 
 Full detail in [`RESULTS.md`](RESULTS.md).
 
+## Performance improvement investigation
+
+[`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md) documents the B70 optimization work done on
+this repo (kernel-level tuning against [vllm-xpu-kernels] + comparison with the
+[NVIDIA RTX 6000 Ada baseline](../qwen_nv)):
+
+| Experiment | Result |
+|---|---|
+| Custom `vllm-xpu-kernels` rebuild (head_size=256 causal paged-decode kernels, v0.1.14) | **0% gain** — full attention actually dispatches to FA2, not XE2 cutlass |
+| GDN "fallback to Triton" investigation | **False alarm** — XPU always uses the fused `_xpu_C.gdn_attention` kernel |
+| MTP / speculative decoding (`--spec-method mtp`) | **Not viable** — Eagle-style Triton prepare kernels + doubled forward ⇒ **-76% decode** |
+
+Key takeaway: decode (31.2 t/s) is already ~85% of B70's memory-bandwidth ceiling for the
+18 GB INT4 weights; remaining headroom is small without higher-level techniques (sampling
+fix, XPU chunked GDN prefill).
+
+The custom kernel config lives in `vendor/vllm-xpu-kernels/csrc/xpu/attn/kernel_configs/
+{paged_decode,chunk_prefill}_qwen38.conf` (rebuild with `VLLM_PAGED_DECODE_CONFIG=...`).
+
 ## Stack
 
 - **vLLM** built from source at upstream commit `e9d1398d9` (nightly, 0.26.1rc1 line)
@@ -60,3 +79,4 @@ SYCL runtimes. Triton's JIT also needs `level_zero/ze_api.h` + a `libze_loader.s
 symlink (installed manually; `level-zero-dev` is unavailable in this distro).
 
 [steveseguin/b70-optimization-lab]: https://github.com/steveseguin/b70-optimization-lab
+[vllm-xpu-kernels]: https://github.com/vllm-project/vllm-xpu-kernels
