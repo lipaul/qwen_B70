@@ -258,6 +258,26 @@ a clear target and manageable effort. The topk_topp sampler fallback is logged, 
 and can be fixed by cherry-picking the CDF-outlier pivot optimization from vllm-xpu-kernels
 main (PR #561) into the local build, or by removing the `per-request generators` requirement.
 
+---
+
+## Addendum: llama.cpp engine comparison (same model, NVIDIA A6000)
+
+For an external reference point, the same Qwen3.8-27B was benchmarked with **llama.cpp**
+(GGUF Q4_K_M, CUDA) on the NVIDIA RTX 6000 Ada, using the same 25-prompt suite. Full detail:
+[`../llama_cpp_bench`](../llama_cpp_bench).
+
+| Metric | vLLM B70 (INT4) | llama.cpp A6000 (Q4_K_M) | vLLM A6000 (INT4) |
+|---|---|---|---|
+| decode median tok/s (1-100) | 31.16 | 40.86 | **45.25** |
+| TTFT median (s) | 0.168 | 0.259 | **0.054** |
+| prefill median (tok/s) | 460 | 303 | **1484** |
+
+Takeaway for the B70 effort: on identical (NVIDIA) hardware, vLLM and llama.cpp decode within
+~10% of each other — decode is bandwidth-bound and engine overhead is small. The B70's 31 t/s
+is therefore ~85% of its practical ceiling; only higher-level techniques (not kernel micro-tuning)
+can move it meaningfully. Notably llama.cpp's per-request TTFT/prefill is ~5× worse than vLLM's,
+so B70 kernel work on the prefill path (Phase 4) remains worthwhile.
+
 ## Artifacts
 
 - Custom kernel config: `vendor/vllm-xpu-kernels/csrc/xpu/attn/kernel_configs/paged_decode_qwen38.conf`
